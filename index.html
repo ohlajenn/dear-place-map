@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<title>Dear Place Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* Layout: full-height map with a slim header and a bottom sheet for marks, notes and sending. */
+:root{
+  --bg:#eef1f4; --paper:#ffffff; --ink:#1d2733; --muted:#5b6673; --line:#d5dbe2;
+  --accent:#2f5d8a; --accent-ink:#ffffff;
+  --miss:#8a3b6b; --better:#1f7a6d; --home:#c4512f;
+  --ok:#1f7a4d; --warn:#9a5b00;
+  --display:"Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --body:"Atkinson Hyperlegible", "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141a21; --paper:#1d252e; --ink:#e7ecf1; --muted:#9aa6b3; --line:#2f3a46;
+  --accent:#7fb0e0; --accent-ink:#0f1720;
+  --miss:#d48ab8; --better:#5fc4b4; --home:#ef8a68; --ok:#6fcf9b; --warn:#e3b05a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141a21; --paper:#1d252e; --ink:#e7ecf1; --muted:#9aa6b3; --line:#2f3a46;
+  --accent:#7fb0e0; --accent-ink:#0f1720;
+  --miss:#d48ab8; --better:#5fc4b4; --home:#ef8a68; --ok:#6fcf9b; --warn:#e3b05a; color-scheme:dark}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45}
+.app{height:100%;display:flex;flex-direction:column}
+header{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px 10px;background:var(--paper);border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:2px}
+h1{margin:0;font-family:var(--display);font-size:1.35rem;letter-spacing:-.01em;text-wrap:balance}
+.sub{margin:0;color:var(--muted);font-size:.9rem}
+.main{flex:1;min-height:0;display:flex}
+.mapwrap{flex:1;min-width:0;min-height:0;position:relative;display:flex}
+#map{flex:1;min-width:0;background:var(--bg)}
+.jump{position:absolute;top:10px;right:max(10px,env(safe-area-inset-right,0px));z-index:500}
+.jump select{background:var(--paper);box-shadow:0 1px 4px rgba(0,0,0,.25);max-width:60vw}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media (max-width:760px){.mapwrap{flex:1 1 54%}}
+.panel{width:360px;max-width:100%;background:var(--paper);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.panel-inner{overflow-y:auto;padding-left:16px;padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px 18px;display:flex;flex-direction:column;gap:16px}
+@media (max-width:760px){
+  .main{flex-direction:column}
+  .panel{width:auto;border-left:0;border-top:1px solid var(--line);max-height:46%}
+  .panel-inner{padding-left:max(16px,env(safe-area-inset-left,0px))}
+}
+.label{font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:0 0 6px}
+.steps{margin:0;padding-left:1.2em;color:var(--muted);font-size:.9rem;display:grid;gap:2px}
+.kinds{display:grid;gap:8px}
+.kind{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;background:transparent;color:var(--ink);font:inherit;cursor:pointer}
+.kind[aria-pressed="true"]{border-color:var(--k);background:color-mix(in srgb,var(--k) 12%,transparent)}
+.kind:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sym{width:26px;height:26px;flex:none;display:grid;place-items:center}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.field{display:flex;flex-direction:column;gap:4px;flex:1;min-width:120px}
+.field label{font-size:.85rem;color:var(--muted)}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+textarea{resize:vertical;min-height:52px}
+.marks{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.mark{border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:grid;grid-template-columns:26px 1fr auto;gap:8px;align-items:start}
+.mark.active{border-color:var(--accent)}
+.mark textarea{width:100%;box-sizing:border-box;min-height:44px}
+.mark .t{font-size:.85rem;color:var(--muted);margin:0 0 4px}
+.icon-btn{border:0;background:transparent;color:var(--muted);cursor:pointer;font:inherit;font-size:.85rem;padding:4px 6px;border-radius:6px}
+.icon-btn:hover{color:var(--ink);background:var(--bg)}
+.empty{color:var(--muted);font-size:.9rem;margin:0;padding:10px 12px;border:1px dashed var(--line);border-radius:10px}
+.btn{font:inherit;font-weight:700;border-radius:10px;padding:11px 14px;border:0;cursor:pointer;background:var(--accent);color:var(--accent-ink)}
+.btn.secondary{background:transparent;color:var(--ink);border:1.5px solid var(--line);font-weight:400}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.status{font-size:.9rem;margin:0}
+.status.ok{color:var(--ok)} .status.warn{color:var(--warn)}
+pre.summary{white-space:pre-wrap;word-break:break-word;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:.8rem;max-height:160px;overflow:auto;margin:0}
+.owner{border-top:1px solid var(--line);padding-top:14px;display:flex;flex-direction:column;gap:8px}
+.attr{font-size:.75rem;color:var(--muted);margin:0}
+.leaflet-container{font-family:var(--body);background:var(--bg)}
+.pin{display:grid;place-items:center;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
+.pin.other{opacity:.85}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Dear Place Map</h1>
+    <p class="sub">Mark places in the Seattle area that have changed, or that feel like home.</p>
+  </header>
+  <div class="main">
+    <div class="mapwrap">
+      <div id="map" role="application" aria-label="Map of the Seattle area. Choose a mark, then tap a place."></div>
+      <label class="jump"><span class="vh">Go to a neighborhood</span>
+        <select id="jump"><option value="">Go to… (whole map)</option></select>
+      </label>
+    </div>
+    <aside class="panel">
+      <div class="panel-inner">
+        <section>
+          <p class="label">How it works</p>
+          <ol class="steps">
+            <li>Choose a mark below.</li>
+            <li>Tap a place on the map. Pinch or scroll to zoom in, and drag to move around.</li>
+            <li>Add a short note if you want. It's optional.</li>
+            <li>Tap "Send my map". Your email app opens with your map. Just tap send.</li>
+          </ol>
+        </section>
+
+        <section>
+          <p class="label">Choose a mark</p>
+          <div class="kinds" id="kinds"></div>
+        </section>
+
+        <section>
+          <p class="label">About you</p>
+          <div class="row">
+            <div class="field">
+              <label for="code">Kit code (on your card)</label>
+              <input id="code" placeholder="e.g. P03" autocomplete="off" maxlength="12">
+            </div>
+            <div class="field">
+              <label for="group">Time in the Seattle area</label>
+              <select id="group">
+                <option value="">Choose one</option>
+                <option value="long-time">10+ years</option>
+                <option value="newcomer">2 years or less</option>
+                <option value="other">Somewhere in between</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <p class="label">Your marks <span id="count"></span></p>
+          <ul class="marks" id="marks"></ul>
+          <p class="empty" id="empty">No marks yet. Choose a mark above, then tap the map.</p>
+        </section>
+
+        <section style="display:flex;flex-direction:column;gap:8px">
+          <button class="btn" id="send" type="button">Send my map</button>
+          <p class="status" id="status" role="status"></p>
+          <div id="fallback" hidden style="display:flex;flex-direction:column;gap:8px">
+            <p class="status">Your email app should open with your map filled in. Just tap send.</p>
+            <p class="status" style="color:var(--muted)">If it didn't open, copy your map and email it to <b>jennhp@uw.edu</b> with the subject <b id="subj">Dear Place</b>.</p>
+            <pre class="summary" id="summary"></pre>
+            <div class="row">
+              <button class="btn secondary" id="copy" type="button">Copy my map</button>
+              <a class="btn secondary" id="mail" href="#" style="text-decoration:none;text-align:center">Open email again</a>
+            </div>
+          </div>
+        </section>
+
+
+        <p class="attr">Map data © OpenStreetMap contributors. Made by Jenn (HCDE, UW) for a class project. Your marks are only used for this project and are sent only when you email them.</p>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+(function(){
+  const EMAIL='jennhp@uw.edu';
+  const KINDS={
+    miss:{label:"Changed, and I miss how it was",short:"Changed, I miss it",shape:"circle"},
+    better:{label:"Changed, and I like it better now",short:"Changed, better now",shape:"triangle"},
+    home:{label:"Feels like home",short:"Feels like home",shape:"heart"}
+  };
+  const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  function svg(kind,size){
+    const c=css('--'+kind)||'#333', s=size||22, paper=css('--paper')||'#fff';
+    if(KINDS[kind].shape==='circle') return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="${paper}" stroke="${c}" stroke-width="3.5"/></svg>`;
+    if(KINDS[kind].shape==='triangle') return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 L21.5 20 H2.5 Z" fill="${paper}" stroke="${c}" stroke-width="3" stroke-linejoin="round"/></svg>`;
+    return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5 C5 15.5 2.5 12 2.5 8.6 C2.5 5.8 4.7 3.7 7.3 3.7 C9.3 3.7 11 4.9 12 6.6 C13 4.9 14.7 3.7 16.7 3.7 C19.3 3.7 21.5 5.8 21.5 8.6 C21.5 12 19 15.5 12 20.5 Z" fill="${c}" stroke="${paper}" stroke-width="1.2"/></svg>`;
+  }
+  const KEY='dearPlaceMap.draft.v2';
+  let state={code:'',group:'',marks:[]};
+  try{const s=JSON.parse(localStorage.getItem(KEY)||'null'); if(s&&Array.isArray(s.marks)) state=s;}catch(e){}
+  const saveDraft=()=>{try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}};
+  let current='miss', activeId=null;
+
+  // Map: live OpenStreetMap tiles, limited to the Seattle area (Lynnwood to SeaTac, west Seattle to Redmond)
+  const AREA=L.latLngBounds([47.40,-122.50],[47.86,-122.02]);
+  const map=L.map('map',{minZoom:10,maxZoom:19,maxBounds:AREA.pad(0.15),maxBoundsViscosity:0.8,zoomSnap:0.5});
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
+  map.fitBounds(AREA);
+  const PLACES=[["Downtown Seattle",47.6062,-122.3321],["South Lake Union",47.6264,-122.3376],["Capitol Hill",47.6253,-122.3222],["U District",47.6614,-122.3132],["Fremont",47.6510,-122.3505],["Ballard",47.6687,-122.3847],["West Seattle",47.5667,-122.3868],["Bellevue",47.6101,-122.2015],["Redmond",47.6740,-122.1215],["Lynnwood",47.8209,-122.3151],["SeaTac",47.4436,-122.3015]];
+  const jump=document.getElementById('jump');
+  PLACES.forEach(([n])=>{const o=document.createElement('option'); o.value=n; o.textContent=n; jump.appendChild(o);});
+  jump.onchange=()=>{const p=PLACES.find(x=>x[0]===jump.value); if(p) map.flyTo([p[1],p[2]],14,{duration:0.8}); else map.flyToBounds(AREA,{duration:0.8});};
+  const layer=L.layerGroup().addTo(map);
+  const icon=k=>L.divIcon({className:'pin',html:svg(k,26),iconSize:[26,26],iconAnchor:[13,13]});
+  const r5=v=>+v.toFixed(5);
+  map.on('click',e=>{
+    const m={id:'m'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),type:current,lat:r5(e.latlng.lat),lon:r5(e.latlng.lng),note:''};
+    state.marks.push(m); activeId=m.id; saveDraft(); render(true);
+  });
+
+  const $=id=>document.getElementById(id);
+  const kindsEl=$('kinds');
+  function renderKinds(){
+    kindsEl.innerHTML='';
+    Object.entries(KINDS).forEach(([k,v])=>{
+      const b=document.createElement('button'); b.type='button'; b.className='kind';
+      b.style.setProperty('--k',css('--'+k)); b.setAttribute('aria-pressed',String(k===current));
+      b.innerHTML=`<span class="sym">${svg(k,24)}</span><span></span>`; b.lastChild.textContent=v.label;
+      b.onclick=()=>{current=k; renderKinds();};
+      kindsEl.appendChild(b);
+    });
+  }
+  $('code').value=state.code; $('group').value=state.group;
+  $('code').oninput=e=>{state.code=e.target.value.trim(); saveDraft();};
+  $('group').onchange=e=>{state.group=e.target.value; saveDraft();};
+
+  function render(focusNew){
+    layer.clearLayers();
+    state.marks.forEach(m=>{
+      const mk=L.marker([m.lat,m.lon],{icon:icon(m.type),draggable:true,keyboard:true,title:KINDS[m.type].short}).addTo(layer);
+      mk.on('dragend',ev=>{const ll=ev.target.getLatLng(); m.lat=r5(ll.lat); m.lon=r5(ll.lng); saveDraft();});
+      mk.on('click',()=>{activeId=m.id; render(true);});
+    });
+    const ul=$('marks'); ul.innerHTML='';
+    $('empty').hidden=state.marks.length>0;
+    $('count').textContent=state.marks.length?`(${state.marks.length})`:'';
+    state.marks.forEach((m,i)=>{
+      const li=document.createElement('li'); li.className='mark'+(m.id===activeId?' active':'');
+      li.innerHTML=`<span class="sym">${svg(m.type,22)}</span><div><p class="t"></p><textarea aria-label="Note for this mark" placeholder="What is this place? (optional)" maxlength="280"></textarea></div><button class="icon-btn" type="button" aria-label="Remove this mark">Remove</button>`;
+      li.querySelector('.t').textContent=`${i+1}. ${KINDS[m.type].short}`;
+      const ta=li.querySelector('textarea'); ta.id='note-'+m.id; ta.value=m.note||'';
+      ta.oninput=()=>{m.note=ta.value; saveDraft();};
+      ta.onfocus=()=>{activeId=m.id; map.panTo([m.lat,m.lon]);};
+      li.querySelector('button').onclick=()=>{state.marks=state.marks.filter(x=>x.id!==m.id); saveDraft(); render();};
+      ul.appendChild(li);
+      if(focusNew&&m.id===activeId){setTimeout(()=>{li.scrollIntoView({block:'nearest'});},0);}
+    });
+  }
+  const subject=()=>`Dear Place ${state.code||''}`.trim()+' (map)';
+  function summary(){
+    const g={'long-time':'10+ years','newcomer':'2 years or less','other':'in between'}[state.group]||'not given';
+    const lines=[`Dear Place Map`,`Kit code: ${state.code||'(none)'}`,`Time in the Seattle area: ${g}`,''];
+    state.marks.forEach((m,i)=>lines.push(`${i+1}. ${KINDS[m.type].short} @ ${m.lat}, ${m.lon}${m.note?'\n   Note: '+m.note.replace(/\s+/g,' '):''}`));
+    return lines.join('\n');
+  }
+  const mailHref=()=>`mailto:${EMAIL}?subject=${encodeURIComponent(subject())}&body=${encodeURIComponent(summary())}`;
+  $('send').onclick=()=>{
+    if(!state.marks.length){$('status').className='status warn'; $('status').textContent='Add at least one mark first.'; return;}
+    if(!state.code){$('status').className='status warn'; $('status').textContent='Please add your kit code (it is on your card).'; $('code').focus(); return;}
+    $('status').textContent=''; $('summary').textContent=summary(); $('subj').textContent=subject();
+    $('mail').href=mailHref(); $('fallback').hidden=false;
+    window.location.href=mailHref();
+  };
+  $('copy').onclick=()=>{
+    const t=$('summary').textContent;
+    const done=()=>{$('copy').textContent='Copied';setTimeout(()=>$('copy').textContent='Copy my map',1800);};
+    try{navigator.clipboard.writeText(t).then(done,selectSummary);}catch(e){selectSummary();}
+  };
+  function selectSummary(){const r=document.createRange(); r.selectNodeContents($('summary')); const s=getSelection(); s.removeAllRanges(); s.addRange(r); $('copy').textContent='Text selected. Copy it now';}
+  renderKinds(); render();
+})();
+</script>
+</body>
+</html>
