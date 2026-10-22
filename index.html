@@ -36,6 +36,9 @@ h1{margin:0;font-family:var(--display);font-size:1.35rem;letter-spacing:-.01em;t
 #map{flex:1;min-width:0;background:var(--bg)}
 .jump{position:absolute;top:10px;right:max(10px,env(safe-area-inset-right,0px));z-index:500}
 .jump select{background:var(--paper);box-shadow:0 1px 4px rgba(0,0,0,.25);max-width:60vw}
+.hint{position:absolute;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:500;background:var(--ink);color:var(--paper);padding:8px 14px;border-radius:999px;font-size:.9rem;box-shadow:0 2px 8px rgba(0,0,0,.25);max-width:calc(100% - 32px);text-align:center;pointer-events:none}
+.hint.armed{background:var(--accent);color:var(--accent-ink)}
+.kind .placed{margin-left:auto;font-size:.8rem;color:var(--muted)}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 @media (max-width:760px){.mapwrap{flex:1 1 54%}}
 .panel{width:360px;max-width:100%;background:var(--paper);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
@@ -89,6 +92,7 @@ pre.summary{white-space:pre-wrap;word-break:break-word;background:var(--bg);bord
   <div class="main">
     <div class="mapwrap">
       <div id="map" role="application" aria-label="Map of the Seattle area. Choose a mark, then tap a place."></div>
+      <div class="hint" id="hint" role="status"></div>
       <label class="jump"><span class="vh">Go to a neighborhood</span>
         <select id="jump"><option value="">Go to… (whole map)</option></select>
       </label>
@@ -98,8 +102,8 @@ pre.summary{white-space:pre-wrap;word-break:break-word;background:var(--bg);bord
         <section>
           <p class="label">How it works</p>
           <ol class="steps">
-            <li>Choose a mark below.</li>
-            <li>Tap a place on the map. Pinch or scroll to zoom in, and drag to move around.</li>
+            <li>Choose a mark below. You can place one of each.</li>
+            <li>Tap the map once to place it. To move it, drag the mark or choose it again and tap a new spot.</li>
             <li>Add a short note if you want. It's optional.</li>
             <li>Tap "Send my map". Your email app opens with your map. Just tap send.</li>
           </ol>
@@ -175,8 +179,9 @@ pre.summary{white-space:pre-wrap;word-break:break-word;background:var(--bg);bord
   const KEY='dearPlaceMap.draft.v2';
   let state={code:'',group:'',marks:[]};
   try{const s=JSON.parse(localStorage.getItem(KEY)||'null'); if(s&&Array.isArray(s.marks)) state=s;}catch(e){}
+  state.marks=state.marks.filter((m,i,a)=>a.findIndex(x=>x.type===m.type)===i);
   const saveDraft=()=>{try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}};
-  let current='miss', activeId=null;
+  let current=null, activeId=null;
 
   // Map: live OpenStreetMap tiles, limited to the Seattle area (Lynnwood to SeaTac, west Seattle to Redmond)
   const AREA=L.latLngBounds([47.40,-122.50],[47.86,-122.02]);
@@ -191,8 +196,12 @@ pre.summary{white-space:pre-wrap;word-break:break-word;background:var(--bg);bord
   const icon=k=>L.divIcon({className:'pin',html:svg(k,26),iconSize:[26,26],iconAnchor:[13,13]});
   const r5=v=>+v.toFixed(5);
   map.on('click',e=>{
-    const m={id:'m'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),type:current,lat:r5(e.latlng.lat),lon:r5(e.latlng.lng),note:''};
-    state.marks.push(m); activeId=m.id; saveDraft(); render(true);
+    if(!current){flashHint(); return;}
+    const lat=r5(e.latlng.lat), lon=r5(e.latlng.lng);
+    let m=state.marks.find(x=>x.type===current);
+    if(m){m.lat=lat; m.lon=lon;}
+    else{m={id:'m'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),type:current,lat,lon,note:''}; state.marks.push(m);}
+    activeId=m.id; current=null; saveDraft(); renderKinds(); render(true);
   });
 
   const $=id=>document.getElementById(id);
@@ -200,13 +209,21 @@ pre.summary{white-space:pre-wrap;word-break:break-word;background:var(--bg);bord
   function renderKinds(){
     kindsEl.innerHTML='';
     Object.entries(KINDS).forEach(([k,v])=>{
+      const placed=state.marks.some(x=>x.type===k);
       const b=document.createElement('button'); b.type='button'; b.className='kind';
       b.style.setProperty('--k',css('--'+k)); b.setAttribute('aria-pressed',String(k===current));
-      b.innerHTML=`<span class="sym">${svg(k,24)}</span><span></span>`; b.lastChild.textContent=v.label;
-      b.onclick=()=>{current=k; renderKinds();};
+      b.innerHTML=`<span class="sym">${svg(k,24)}</span><span></span>${placed?'<span class="placed">Placed. Choose to move</span>':''}`; b.children[1].textContent=v.label;
+      b.onclick=()=>{current=(current===k?null:k); renderKinds(); if(current&&window.matchMedia('(max-width:760px)').matches) document.getElementById('map').scrollIntoView({block:'nearest',behavior:'smooth'});};
       kindsEl.appendChild(b);
     });
+    updateHint();
   }
+  function updateHint(){
+    const h=$('hint');
+    if(current){const moving=state.marks.some(x=>x.type===current); h.className='hint armed'; h.textContent=(moving?'Tap the map to move: ':'Tap the map to place: ')+KINDS[current].short;}
+    else{h.className='hint'; h.textContent=state.marks.length>=3?'All 3 marks placed. Drag a mark to move it.':'Choose a mark below, then tap the map.';}
+  }
+  function flashHint(){const h=$('hint'); h.animate&&h.animate([{transform:'translateX(-50%) scale(1.06)'},{transform:'translateX(-50%) scale(1)'}],{duration:220});}
   $('code').value=state.code; $('group').value=state.group;
   $('code').oninput=e=>{state.code=e.target.value.trim(); saveDraft();};
   $('group').onchange=e=>{state.group=e.target.value; saveDraft();};
@@ -228,7 +245,7 @@ pre.summary{white-space:pre-wrap;word-break:break-word;background:var(--bg);bord
       const ta=li.querySelector('textarea'); ta.id='note-'+m.id; ta.value=m.note||'';
       ta.oninput=()=>{m.note=ta.value; saveDraft();};
       ta.onfocus=()=>{activeId=m.id; map.panTo([m.lat,m.lon]);};
-      li.querySelector('button').onclick=()=>{state.marks=state.marks.filter(x=>x.id!==m.id); saveDraft(); render();};
+      li.querySelector('button').onclick=()=>{state.marks=state.marks.filter(x=>x.id!==m.id); saveDraft(); renderKinds(); render();};
       ul.appendChild(li);
       if(focusNew&&m.id===activeId){setTimeout(()=>{li.scrollIntoView({block:'nearest'});},0);}
     });
