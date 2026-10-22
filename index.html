@@ -237,7 +237,7 @@ pre.summary{white-space:pre-wrap;word-break:break-word;background:var(--bg);bord
   function summary(){
     const g={'long-time':'10+ years','newcomer':'2 years or less','other':'in between'}[state.group]||'not given';
     const lines=[`Dear Place Map`,`Kit code: ${state.code||'(none)'}`,`Time in the Seattle area: ${g}`,''];
-    state.marks.forEach((m,i)=>lines.push(`${i+1}. ${KINDS[m.type].short} @ ${m.lat}, ${m.lon}${m.note?'\n   Note: '+m.note.replace(/\s+/g,' '):''}`));
+    state.marks.forEach((m,i)=>lines.push(`${i+1}. ${KINDS[m.type].short}${m.note?'\n   Note: '+m.note.replace(/\s+/g,' '):''}\n   Where: https://www.openstreetmap.org/?mlat=${m.lat}&mlon=${m.lon}#map=17/${m.lat}/${m.lon}\n   (${m.lat}, ${m.lon})\n`));
     return lines.join('\n');
   }
   const mailHref=()=>`mailto:${EMAIL}?subject=${encodeURIComponent(subject())}&body=${encodeURIComponent(summary())}`;
