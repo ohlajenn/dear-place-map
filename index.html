@@ -87,7 +87,7 @@ pre.summary{white-space:pre-wrap;word-break:break-word;background:var(--bg);bord
 <div class="app">
   <header>
     <h1>Dear Place Map</h1>
-    <p class="sub">Mark the places in the Seattle area where you feel nostalgic, out of place, or at home.</p>
+    <p class="sub">Mark the places in the Seattle area where you feel nostalgic, uneasy, or comfortable.</p>
   </header>
   <div class="main">
     <div class="mapwrap">
@@ -125,9 +125,8 @@ pre.summary{white-space:pre-wrap;word-break:break-word;background:var(--bg);bord
               <label for="group">Time in the Seattle area</label>
               <select id="group">
                 <option value="">Choose one</option>
-                <option value="long-time">10+ years</option>
+                <option value="long-time">8+ years</option>
                 <option value="newcomer">2 years or less</option>
-                <option value="other">Somewhere in between</option>
               </select>
             </div>
           </div>
@@ -166,8 +165,8 @@ pre.summary{white-space:pre-wrap;word-break:break-word;background:var(--bg);bord
   const EMAIL='jennhp@uw.edu';
   const KINDS={
     miss:{label:"Where do you feel nostalgic?",short:"Nostalgic",shape:"circle"},
-    better:{label:"Where do you feel out of place?",short:"Out of place",shape:"triangle"},
-    home:{label:"Where do you feel at home?",short:"At home",shape:"heart"}
+    better:{label:"Where do you feel uneasy?",short:"Uneasy",shape:"triangle"},
+    home:{label:"Where do you feel comfortable?",short:"Comfortable",shape:"heart"}
   };
   const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   function svg(kind,size){
@@ -252,7 +251,7 @@ pre.summary{white-space:pre-wrap;word-break:break-word;background:var(--bg);bord
   }
   const subject=()=>`Dear Place ${state.code||''}`.trim()+' (map)';
   function summary(){
-    const g={'long-time':'10+ years','newcomer':'2 years or less','other':'in between'}[state.group]||'not given';
+    const g={'long-time':'8+ years','newcomer':'2 years or less'}[state.group]||'not given';
     const lines=[`Dear Place Map`,`Kit code: ${state.code||'(none)'}`,`Time in the Seattle area: ${g}`,''];
     state.marks.forEach((m,i)=>lines.push(`${i+1}. ${KINDS[m.type].short}${m.note?'\n   Why: '+m.note.replace(/\s+/g,' '):''}\n   Where: https://www.openstreetmap.org/?mlat=${m.lat}&mlon=${m.lon}#map=17/${m.lat}/${m.lon}\n   (${m.lat}, ${m.lon})\n`));
     return lines.join('\n');
