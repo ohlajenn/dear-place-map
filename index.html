@@ -260,6 +260,7 @@ pre.summary{white-space:pre-wrap;word-break:break-word;background:var(--bg);bord
   $('send').onclick=()=>{
     if(!state.marks.length){$('status').className='status warn'; $('status').textContent='Add at least one mark first.'; return;}
     if(!state.code){$('status').className='status warn'; $('status').textContent='Please add your kit code (it is on your card).'; $('code').focus(); return;}
+    if(!state.group){$('status').className='status warn'; $('status').textContent='Please choose how long you have lived in the Seattle area.'; $('group').focus(); return;}
     $('status').textContent=''; $('summary').textContent=summary(); $('subj').textContent=subject();
     $('mail').href=mailHref(); $('fallback').hidden=false;
     window.location.href=mailHref();
